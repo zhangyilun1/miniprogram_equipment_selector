@@ -1,0 +1,1 @@
+# miniprogram_equipment_selector

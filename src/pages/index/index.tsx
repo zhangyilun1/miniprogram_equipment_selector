@@ -1,7 +1,9 @@
 import { View, Text, Button, Form, Input, Picker } from '@tarojs/components'
-import { useLoad, showToast } from '@tarojs/taro'
+import { useLoad, showToast,navigateTo } from '@tarojs/taro'
 
 import './index.scss'
+import { createOpenAI } from '../../utils/openai'
+
 import React, { useState } from 'react';
 
 interface ValidationState {
@@ -30,7 +32,18 @@ interface FormData {
   device_type: string;
 }
 
+interface Response {
+  choices: Array<{
+    message: {
+      content: string;
+    }
+  }>;
+}
+
 export default function Index() {
+
+  const apiKey = 'sk-Fv9HhUQCNj8e3hIg5IryIIowlVREnxn74XGBZWcoUiSR9tTJ';
+  const openai = createOpenAI(apiKey);
 
   const [validation, setValidation] = useState<ValidationState>({
     length: true,
@@ -94,7 +107,25 @@ export default function Index() {
     }));
   }
 
-  const formSubmit = (e) => {
+  const generatePrompt = (formData) =>{
+   
+    return `请根据以下冷库参数进行设备选型计算：
+  1. 冷库尺寸：长${formData.length}米 × 宽${formData.width}米 × 高${formData.height}米
+  2. 储存物品：${formData.stuff_name}，数量${formData.stuff_quality}kg
+  3. 温度要求：从${formData.begin_temp}°C降至${formData.aim_temp}°C，时间${formData.consuming_time}小时
+  4. 地理位置：${formData.location}
+  5. 制冷设备类型：${formData.device_type}
+
+  请计算并提供：
+  1. 冷库体积
+  2. 物品总热量
+  3. 所需压缩机机组大小
+  4. 匹配的冷凝器大小`;
+  }
+
+
+
+  const formSubmit = async (e) => {
 
     console.log(" === submit form ===")
     // 创建新的验证状态
@@ -118,18 +149,50 @@ export default function Index() {
 
     console.log("hasEmptyFields : ", hasEmptyFields)
 
-    if (hasEmptyFields) {
-      showToast({
-        title: '请填写完整所有信息',
-        icon: 'none',
-        duration: 200000
-      });
-      return;
-    }
+    // if (hasEmptyFields) {
+    //   showToast({
+    //     title: '请填写完整所有信息',
+    //     icon: 'none',
+    //     duration: 200000
+    //   });
+    //   return;
+    // }
 
     console.log("form submit", formData);
+   
+
+    try {
+      const conversation = generatePrompt(formData);
+      console.log("conversation", conversation);
+      const messages = [
+        { role: 'user', content: conversation }
+      ];
+      console.log("messages :", messages);
+      const completion = await openai.chatCompletion(messages) as Response;
+      console.log("completion :", completion);
+      const content = completion.choices[0].message.content;
+      console.log("content :", content);
+      this.setData({
+        results: content,  // content 是 string 类型
+        loading: false
+      })
+    } catch (error) {
+      if (error instanceof Error) {
+        wx.showToast({
+          title: error.message,
+          icon: 'none'
+        });
+      }
+      this.setData({ loading: false });
+    }
 
 
+
+
+
+    navigateTo({
+      url: '/pages/result/result', // 替换为目标页面的路径
+    });
 
   }
 
@@ -321,7 +384,7 @@ export default function Index() {
           </View>
         </View>
 
-        <Button className="bg-indigo-600 text-white"
+        <Button className="bg-indigo-600 text-white m-4 p-2"
           hoverClass="bg-green-500"
           formType="submit">
           提交计算

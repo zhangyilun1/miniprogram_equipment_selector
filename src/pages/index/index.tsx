@@ -1,5 +1,5 @@
 import { View, Text, Button, Form, Input, Picker } from '@tarojs/components'
-import { useLoad, showToast,navigateTo } from '@tarojs/taro'
+import { useLoad, showToast,navigateTo, setStorageSync} from '@tarojs/taro'
 
 import './index.scss'
 import { createOpenAI } from '../../utils/openai'
@@ -40,6 +40,11 @@ interface Response {
   }>;
 }
 
+interface Process {
+  conversation: string,
+  result: string
+}
+
 export default function Index() {
 
   const apiKey = 'sk-Fv9HhUQCNj8e3hIg5IryIIowlVREnxn74XGBZWcoUiSR9tTJ';
@@ -71,6 +76,19 @@ export default function Index() {
     device_type: ''
   });
 
+
+  
+  const [process, setProcess] = useState<Process>({
+    conversation:'',
+    result: ''
+  });
+
+  const updateProcess = (fieldName: string, value: any) => {
+    setProcess(prev => ({
+      ...prev,
+      [fieldName]: value
+    }));
+  };
 
   const handleInputClick = (e: any) => {
     console.log(e);
@@ -108,7 +126,12 @@ export default function Index() {
   }
 
   const generatePrompt = (formData) =>{
-   
+    var type_sentence;
+    if(formData.device_type == '铝排'){
+      type_sentence = '所需铝排长度'
+    }else if(formData.device_type == '风机') {
+      type_sentence = '所需铝排长度'
+    }
     return `请根据以下冷库参数进行设备选型计算：
   1. 冷库尺寸：长${formData.length}米 × 宽${formData.width}米 × 高${formData.height}米
   2. 储存物品：${formData.stuff_name}，数量${formData.stuff_quality}kg
@@ -120,7 +143,9 @@ export default function Index() {
   1. 冷库体积
   2. 物品总热量
   3. 所需压缩机机组大小
-  4. 匹配的冷凝器大小`;
+  4. 匹配的冷凝器大小
+  5. ${type_sentence}
+  `
   }
 
 
@@ -160,10 +185,11 @@ export default function Index() {
 
     console.log("form submit", formData);
    
-
     try {
       const conversation = generatePrompt(formData);
-      console.log("conversation", conversation);
+      //updateProcess('conversation', conversation);
+      // console.log("conversation", conversation);
+      // setStorageSync('conversasion', conversation);
       const messages = [
         { role: 'user', content: conversation }
       ];
@@ -171,27 +197,38 @@ export default function Index() {
       const completion = await openai.chatCompletion(messages) as Response;
       console.log("completion :", completion);
       const content = completion.choices[0].message.content;
-      console.log("content :", content);
-      this.setData({
-        results: content,  // content 是 string 类型
-        loading: false
-      })
+      // console.log("content :", content);
+      //updateProcess('result', content);
+      setStorageSync('result', content);
+      setStorageSync('conversation', conversation);
     } catch (error) {
       if (error instanceof Error) {
-        wx.showToast({
+        showToast({
           title: error.message,
           icon: 'none'
         });
       }
-      this.setData({ loading: false });
     }
-
+    console.log("navigateTo === >");
 
 
 
 
     navigateTo({
       url: '/pages/result/result', // 替换为目标页面的路径
+      fail: (err) => {
+        console.error('Navigation failed:', err);
+        showToast({
+          title: '页面跳转失败',
+          icon: 'none'
+        });
+      }
+      // success: function () {
+      //   // console.log("process result : " , process.result);
+      //   // console.log("process conversation : " , process.conversation);
+      //   // setStorageSync('result',1); // 可以通过本地存储传递复杂数据
+      //   // setStorageSync('conversation', 2);
+      // }
     });
 
   }
